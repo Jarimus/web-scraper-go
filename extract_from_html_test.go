@@ -1,8 +1,8 @@
 package main
 
-import "fmt"
+import "testing"
 
-func main() {
+func TestGetFirstHeaderFromHTML(t *testing.T) {
 	tests := []struct {
 		name     string
 		html     string
@@ -33,6 +33,25 @@ func main() {
 			html:     "<html><h1 class=\"title\" id=\"main\">Main Header</h1></html>",
 			expected: "Main Header",
 		},
+	}
+
+	for i, tc := range tests {
+		actual, err := getH1FromHTML(tc.html)
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+		if actual != tc.expected {
+			t.Errorf("Test %v - %s\nExpected: %s\nActual: %s", i+1, tc.name, tc.expected, actual)
+		}
+	}
+}
+
+func TestGetFirstParagraphFromHTML(t *testing.T) {
+	tests := []struct {
+		name     string
+		html     string
+		expected string
+	}{
 		{
 			name:     "One paragraph",
 			html:     "<html><p>paragraph one</p></html>",
@@ -60,18 +79,13 @@ func main() {
 		},
 	}
 
-	for _, tc := range tests {
-		fmt.Println(tc.name)
-		h1, err := getH1FromHTML(tc.html)
+	for i, tc := range tests {
+		actual, err := getFirstParagraphFromHTML(tc.html)
 		if err != nil {
-			fmt.Print(err)
+			t.Errorf("Unexpected error: %v", err)
 		}
-		fmt.Printf("Finding h1: %s\n", h1)
-		p, err := getFirstParagraphFromHTML(tc.html)
-		if err != nil {
-			fmt.Print(err)
+		if actual != tc.expected {
+			t.Errorf("Test %v - %s\nExpected: %s\nActual: %s", i+1, tc.name, tc.expected, actual)
 		}
-		fmt.Printf("Finding first paragraph: %s\n", p)
-		fmt.Println("-------")
 	}
 }
