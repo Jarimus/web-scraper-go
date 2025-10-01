@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"net/url"
+	"reflect"
+	"testing"
+)
 
 func TestGetFirstHeaderFromHTML(t *testing.T) {
 	tests := []struct {
@@ -36,13 +40,15 @@ func TestGetFirstHeaderFromHTML(t *testing.T) {
 	}
 
 	for i, tc := range tests {
-		actual, err := getH1FromHTML(tc.html)
-		if err != nil {
-			t.Errorf("Unexpected error: %v", err)
-		}
-		if actual != tc.expected {
-			t.Errorf("Test %v - %s\nExpected: %s\nActual: %s", i+1, tc.name, tc.expected, actual)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			actual, err := getH1FromHTML(tc.html)
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+			if actual != tc.expected {
+				t.Errorf("Test %v - %s\nExpected: %s\nActual: %s", i+1, tc.name, tc.expected, actual)
+			}
+		})
 	}
 }
 
@@ -80,12 +86,191 @@ func TestGetFirstParagraphFromHTML(t *testing.T) {
 	}
 
 	for i, tc := range tests {
-		actual, err := getFirstParagraphFromHTML(tc.html)
-		if err != nil {
-			t.Errorf("Unexpected error: %v", err)
-		}
-		if actual != tc.expected {
-			t.Errorf("Test %v - %s\nExpected: %s\nActual: %s", i+1, tc.name, tc.expected, actual)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			actual, err := getFirstParagraphFromHTML(tc.html)
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+			}
+			if actual != tc.expected {
+				t.Errorf("Test %v - %s\nExpected: %s\nActual: %s", i+1, tc.name, tc.expected, actual)
+			}
+		})
+
+	}
+}
+
+func TestGetURLsFromHTML(t *testing.T) {
+	baseURL, _ := url.Parse("https://example.com")
+
+	tests := []struct {
+		name     string
+		html     string
+		baseURL  *url.URL
+		expected []string
+		wantErr  bool
+	}{
+		{
+			name:    "Links with absolute URLs",
+			html:    `<html><a href="https://example.com/page1">Link</a><img src="https://example.com/img1.jpg"></html>`,
+			baseURL: baseURL,
+			expected: []string{
+				"https://example.com/page1",
+			},
+		},
+		{
+			name:    "Relative URLs resolved to absolute",
+			html:    `<html><a href="/page2">Link</a><img src="images/photo.jpg"></html>`,
+			baseURL: baseURL,
+			expected: []string{
+				"https://example.com/page2",
+			},
+		},
+		{
+			name:    "Mixed absolute and relative URLs",
+			html:    `<html><a href="https://other.com/page">Link</a><img src="/img2.png"><a href="sub/page3">Link</a></html>`,
+			baseURL: baseURL,
+			expected: []string{
+				"https://other.com/page",
+				"https://example.com/sub/page3",
+			},
+		},
+		{
+			name:     "Empty HTML",
+			html:     "",
+			baseURL:  baseURL,
+			expected: []string{},
+		},
+		{
+			name:     "No URLs present",
+			html:     `<html><p>Some text</p><div>No links here</div></html>`,
+			baseURL:  baseURL,
+			expected: []string{},
+		},
+		{
+			name:     "Malformed URLs",
+			html:     `<html><a href="::invalid::">Link</a><img src="http://[invalid"></html>`,
+			baseURL:  baseURL,
+			expected: []string{},
+		},
+		{
+			name:     "Missing href attribute",
+			html:     `<html><a>Link without href</a><img alt="no src"></html>`,
+			baseURL:  baseURL,
+			expected: []string{},
+		},
+		{
+			name:    "URLs with query parameters and fragments",
+			html:    `<html><a href="/page4?q=1#section">Link</a><img src="https://example.com/img3.jpg?size=large"></html>`,
+			baseURL: baseURL,
+			expected: []string{
+				"https://example.com/page4?q=1#section",
+			},
+		},
+	}
+
+	for i, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			actual, err := getURLsFromHTML(tc.html, tc.baseURL)
+			if err != nil {
+				t.Errorf("Test %v - %s\nUnexpected error: %v", i+1, tc.name, err)
+			}
+			if !reflect.DeepEqual(actual, tc.expected) {
+				t.Errorf("Test %v - %s\nExpected: %v\nActual: %v", i+1, tc.name, tc.expected, actual)
+			}
+		})
+
+	}
+}
+
+func TestGetImagesFromHTML(t *testing.T) {
+	baseURL, _ := url.Parse("https://example.com")
+
+	tests := []struct {
+		name     string
+		html     string
+		baseURL  *url.URL
+		expected []string
+		wantErr  bool
+	}{
+		{
+			name:    "Single image with absolute URL",
+			html:    `<html><img src="https://example.com/img1.jpg"></html>`,
+			baseURL: baseURL,
+			expected: []string{
+				"https://example.com/img1.jpg",
+			},
+			wantErr: false,
+		},
+		{
+			name:    "Multiple images with relative URLs",
+			html:    `<html><img src="/images/photo1.png"><img src="assets/img2.jpg"></html>`,
+			baseURL: baseURL,
+			expected: []string{
+				"https://example.com/images/photo1.png",
+				"https://example.com/assets/img2.jpg",
+			},
+		},
+		{
+			name:    "Mixed absolute and relative URLs",
+			html:    `<html><img src="https://other.com/pic.jpg"><img src="/img3.png"></html>`,
+			baseURL: baseURL,
+			expected: []string{
+				"https://other.com/pic.jpg",
+				"https://example.com/img3.png",
+			},
+		},
+		{
+			name:     "Empty HTML",
+			html:     "",
+			baseURL:  baseURL,
+			expected: []string{},
+		},
+		{
+			name:     "No images present",
+			html:     `<html><p>Some text</p><a href="/link">Link</a></html>`,
+			baseURL:  baseURL,
+			expected: []string{},
+		},
+		{
+			name:     "Malformed src URL",
+			html:     `<html><img src="::invalid::"></html>`,
+			baseURL:  baseURL,
+			expected: []string{},
+		},
+		{
+			name:     "Missing src attribute",
+			html:     `<html><img alt="no src"></html>`,
+			baseURL:  baseURL,
+			expected: []string{},
+		},
+		{
+			name:    "Image with query parameters",
+			html:    `<html><img src="/img4.jpg?size=large"></html>`,
+			baseURL: baseURL,
+			expected: []string{
+				"https://example.com/img4.jpg?size=large",
+			},
+		},
+		{
+			name:    "Image with attributes",
+			html:    `<html><img src="/img5.gif" alt="test" class="image"></html>`,
+			baseURL: baseURL,
+			expected: []string{
+				"https://example.com/img5.gif",
+			},
+		},
+	}
+
+	for i, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			actual, err := getImagesFromHTML(tc.html, tc.baseURL)
+			if err != nil {
+				t.Errorf("Test %v - %s\nUnexpected error: %v", i+1, tc.name, err)
+			}
+			if !reflect.DeepEqual(actual, tc.expected) {
+				t.Errorf("Test %v - %s\nExpected: %v\nActual: %v", i+1, tc.name, tc.expected, actual)
+			}
+		})
+
 	}
 }
