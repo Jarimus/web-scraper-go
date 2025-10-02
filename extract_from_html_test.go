@@ -274,3 +274,134 @@ func TestGetImagesFromHTML(t *testing.T) {
 
 	}
 }
+
+func TestExtractPageData(t *testing.T) {
+	tests := []struct {
+		name     string
+		html     string
+		pageURL  string
+		expected PageData
+	}{
+		{
+			name:    "empty html",
+			html:    "",
+			pageURL: "http://example.com",
+			expected: PageData{
+				URL:            "http://example.com",
+				H1:             "",
+				FirstParagraph: "",
+				OutgoingLinks:  []string{},
+				ImageURLs:      []string{},
+			},
+		},
+		{
+			name: "complete html with all elements",
+			html: `
+				<html>
+					<head><title>Test</title></head>
+					<body>
+						<h1>Main Heading</h1>
+						<p>First paragraph text.</p>
+						<p>Second paragraph.</p>
+						<a href="/about">About</a>
+						<a href="https://external.com">External</a>
+						<img src="image1.jpg">
+						<img src="http://example.com/image2.png">
+					</body>
+				</html>`,
+			pageURL: "http://example.com",
+			expected: PageData{
+				URL:            "http://example.com",
+				H1:             "Main Heading",
+				FirstParagraph: "First paragraph text.",
+				OutgoingLinks:  []string{"http://example.com/about", "https://external.com"},
+				ImageURLs:      []string{"http://example.com/image1.jpg", "http://example.com/image2.png"},
+			},
+		},
+		{
+			name: "missing elements",
+			html: `
+				<html>
+					<body>
+						<p>No heading here.</p>
+						<a href="page.html">Link</a>
+					</body>
+				</html>`,
+			pageURL: "http://example.com",
+			expected: PageData{
+				URL:            "http://example.com",
+				H1:             "",
+				FirstParagraph: "No heading here.",
+				OutgoingLinks:  []string{"http://example.com/page.html"},
+				ImageURLs:      []string{},
+			},
+		},
+		{
+			name: "relative and absolute URLs",
+			html: `
+				<html>
+					<body>
+						<h1>Heading</h1>
+						<p>Text</p>
+						<a href="/relative/path">Relative</a>
+						<a href="subfolder/page.html">Subfolder</a>
+						<a href="https://other.com">Absolute</a>
+						<img src="/images/pic.jpg">
+						<img src="local.jpg">
+					</body>
+				</html>`,
+			pageURL: "http://example.com/path/",
+			expected: PageData{
+				URL:            "http://example.com/path/",
+				H1:             "Heading",
+				FirstParagraph: "Text",
+				OutgoingLinks: []string{
+					"http://example.com/relative/path",
+					"http://example.com/path/subfolder/page.html",
+					"https://other.com",
+				},
+				ImageURLs: []string{
+					"http://example.com/images/pic.jpg",
+					"http://example.com/path/local.jpg",
+				},
+			},
+		},
+		{
+			name: "no body content",
+			html: `
+				<html>
+					<head><title>Empty</title></head>
+					<body></body>
+				</html>`,
+			pageURL: "http://example.com",
+			expected: PageData{
+				URL:            "http://example.com",
+				H1:             "",
+				FirstParagraph: "",
+				OutgoingLinks:  []string{},
+				ImageURLs:      []string{},
+			},
+		},
+		{
+			name:    "invalid url",
+			html:    "<html><h1>Test</h1><p>Paragraph</p></html>",
+			pageURL: "not-a-url",
+			expected: PageData{
+				URL:            "not-a-url",
+				H1:             "Test",
+				FirstParagraph: "Paragraph",
+				OutgoingLinks:  []string{},
+				ImageURLs:      []string{},
+			},
+		},
+	}
+
+	for i, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := extractPageData(tc.html, tc.pageURL)
+			if !reflect.DeepEqual(tc.expected, actual) {
+				t.Errorf("Test %v - %s\nExpected: %+v\nActual: %+v", i+1, tc.name, tc.expected, actual)
+			}
+		})
+	}
+}

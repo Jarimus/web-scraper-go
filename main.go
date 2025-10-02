@@ -1,77 +1,35 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
 
 func main() {
-	tests := []struct {
-		name     string
-		html     string
-		expected string
-	}{
-		{
-			name:     "Single h1",
-			html:     "<html><h1>Header One</h1></html>",
-			expected: "Header One",
-		},
-		{
-			name:     "Multiple headers",
-			html:     "<html><h1>First Header</h1><h2>Second Header</h2></html>",
-			expected: "First Header",
-		},
-		{
-			name:     "No h1 present",
-			html:     "<html><p>Some text</p><h2>Other Header</h2></html>",
-			expected: "",
-		},
-		{
-			name:     "Empty HTML",
-			html:     "",
-			expected: "",
-		},
-		{
-			name:     "h1 with attributes",
-			html:     "<html><h1 class=\"title\" id=\"main\">Main Header</h1></html>",
-			expected: "Main Header",
-		},
-		{
-			name:     "One paragraph",
-			html:     "<html><p>paragraph one</p></html>",
-			expected: "paragraph one",
-		},
-		{
-			name:     "Multiple paragraphs",
-			html:     "<html><p>First paragraph</p><p>Second paragraph</p></html>",
-			expected: "First paragraph",
-		},
-		{
-			name:     "No paragraph present",
-			html:     "<html><h1>Header</h1><div>Some text</div></html>",
-			expected: "",
-		},
-		{
-			name:     "Empty HTML",
-			html:     "",
-			expected: "",
-		},
-		{
-			name:     "Paragraph with attributes",
-			html:     "<html><p class=\"intro\" id=\"p1\">Intro paragraph</p></html>",
-			expected: "Intro paragraph",
-		},
+	if len(os.Args) < 2 {
+		fmt.Println("no website provided")
+		os.Exit(1)
+	}
+	if len(os.Args) > 2 {
+		fmt.Println("too many arguments provided")
+		os.Exit(1)
+	}
+	rawBaseURL := os.Args[1]
+
+	const maxConcurrency = 1
+	cfg, err := configure(rawBaseURL, maxConcurrency)
+	if err != nil {
+		fmt.Printf("Error - configure: %v", err)
+		return
 	}
 
-	for _, tc := range tests {
-		fmt.Println(tc.name)
-		h1, err := getH1FromHTML(tc.html)
-		if err != nil {
-			fmt.Print(err)
-		}
-		fmt.Printf("Finding h1: %s\n", h1)
-		p, err := getFirstParagraphFromHTML(tc.html)
-		if err != nil {
-			fmt.Print(err)
-		}
-		fmt.Printf("Finding first paragraph: %s\n", p)
-		fmt.Println("-------")
+	fmt.Printf("starting crawl of: %s...\n", rawBaseURL)
+
+	cfg.wg.Add(1)
+	go cfg.crawlPage(rawBaseURL)
+	cfg.wg.Wait()
+
+	for normalizedURL, pageData := range cfg.pages {
+		fmt.Printf("%d - %s\n", pageData.Visits, normalizedURL)
 	}
 }
