@@ -67,7 +67,7 @@ func getH1FromHTML(html string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return doc.Find("h1").First().Text(), nil
+	return strings.Trim(doc.Find("h1").First().Text(), " \n"), nil
 }
 
 func getFirstParagraphFromHTML(html string) (string, error) {
@@ -76,7 +76,7 @@ func getFirstParagraphFromHTML(html string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return doc.Find("p").First().Text(), nil
+	return strings.Trim(doc.Find("p").First().Text(), " \n"), nil
 }
 
 func getURLsFromHTML(htmlBody string, baseURL *url.URL) ([]string, error) {
